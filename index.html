@@ -23,7 +23,8 @@
   }
   #game-container {
     position: relative;
-    width: min(100vw, 800px);
+    /* 幅だけでなく高さ(dvh)も考慮し、横向き時にはみ出さないようにする */
+    width: min(100vw, calc((100dvh - 16px) * 1.6), 800px);
     padding: 8px;
   }
   canvas {
@@ -40,8 +41,9 @@
   #touch-controls {
     display: none;
     position: absolute;
-    left: 8px; right: 8px;
-    bottom: 16px;
+    left: calc(8px + env(safe-area-inset-left));
+    right: calc(8px + env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
     pointer-events: none;        /* 子要素のボタンのみ操作可 */
     justify-content: space-between;
     align-items: flex-end;
@@ -90,7 +92,8 @@
   #tc-pause {
     display: none;
     position: absolute;
-    top: 16px; right: 16px;
+    top: calc(10px + env(safe-area-inset-top));
+    right: calc(10px + env(safe-area-inset-right));
     width: 40px; height: 40px;
     border-radius: 8px;
     background: rgba(8,10,25,0.72);
