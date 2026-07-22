@@ -68,18 +68,32 @@
     background: rgba(80,110,200,0.55);
     border-color: #9ecbff;
   }
-  /* 十字パッド（3x3グリッド、中央は空） */
-  #tc-dpad {
-    display: grid;
-    grid-template-columns: repeat(3, 54px);
-    grid-template-rows: repeat(3, 54px);
-    gap: 4px;
+  /* ===== バーチャルジョイスティック（8方向・1本指操作） ===== */
+  #tc-joystick {
+    pointer-events: auto;
+    position: relative;
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: rgba(8,10,25,0.55);
+    border: 1px solid #3a4a8f;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
   }
-  #tc-dpad .tc-btn { border-radius: 10px; font-size: 18px; }
-  #tc-up    { grid-column: 2; grid-row: 1; }
-  #tc-left  { grid-column: 1; grid-row: 2; }
-  #tc-right { grid-column: 3; grid-row: 2; }
-  #tc-down  { grid-column: 2; grid-row: 3; }
+  #tc-stick {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 56px; height: 56px;
+    margin-left: -28px; margin-top: -28px;
+    border-radius: 50%;
+    background: rgba(80,110,200,0.6);
+    border: 1px solid #9ecbff;
+    transition: background 0.1s;
+    pointer-events: none;
+  }
+  #tc-joystick.active #tc-stick {
+    background: rgba(120,150,255,0.85);
+  }
   /* 右側のアクションボタン */
   #tc-actions {
     display: flex;
@@ -116,11 +130,8 @@
   <button id="tc-pause" aria-label="ポーズ">II</button>
 
   <div id="touch-controls">
-    <div id="tc-dpad">
-      <div id="tc-up"    class="tc-btn" data-key="arrowup">▲</div>
-      <div id="tc-left"  class="tc-btn" data-key="arrowleft">◀</div>
-      <div id="tc-right" class="tc-btn" data-key="arrowright">▶</div>
-      <div id="tc-down"  class="tc-btn" data-key="arrowdown">▼</div>
+    <div id="tc-joystick">
+      <div id="tc-stick"></div>
     </div>
     <div id="tc-actions">
       <div id="tc-missile" class="tc-btn" data-key="x">MSL</div>
@@ -180,9 +191,9 @@ const Input = {
 };
 
 /* ===== 2b. タッチ操作 =====
- * 各ボタン要素ごとに touchstart/touchend を張ることで、
- * D-pad と SHOT/MSL の同時押し（マルチタッチ）に対応する。
- * Input.down / Input.pressed に直接反映するので、以降のゲームロジックは
+ * SHOT/MSL等の丸ボタンは touchstart/touchend で Input.down に直接反映。
+ * 移動は1本指で8方向に倒せるバーチャルジョイスティック（角度から8方向判定）。
+ * いずれも Input.down / Input.pressed に反映するので、以降のゲームロジックは
  * キーボードと完全に共通のまま扱える。 */
 const TouchControls = {
   init() {
@@ -217,9 +228,94 @@ const TouchControls = {
     pauseBtn.addEventListener('touchstart', togglePause, { passive: false });
     pauseBtn.addEventListener('click', togglePause);
 
+    this.initJoystick();
+
     // 画面全体でのピンチズーム/スクロールを念のため抑止
     document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
     document.addEventListener('gesturestart', e => e.preventDefault());
+  },
+
+  /** 8方向バーチャルジョイスティック。角度を45度刻みで丸めて
+   * arrowup/down/left/right の組み合わせ(最大2キー)をON/OFFする。 */
+  initJoystick() {
+    const base = document.getElementById('tc-joystick');
+    const stick = document.getElementById('tc-stick');
+    const R = 35;      // スティックの見た目上の可動半径(px)
+    const DEAD = 10;   // 中心付近の不感帯(px)
+    // [up, down, left, right] を8方向ぶん用意（0=右, 時計回りに45度ずつ）
+    const TABLE = [
+      [false, false, false, true],   // →
+      [false, true,  false, true],   // ↘
+      [false, true,  false, false],  // ↓
+      [false, true,  true,  false],  // ↙
+      [false, false, true,  false],  // ←
+      [true,  false, true,  false],  // ↖
+      [true,  false, false, false],  // ↑
+      [true,  false, false, true],   // ↗
+    ];
+    let touchId = null, cx = 0, cy = 0;
+
+    const setDirs = (up, down, left, right) => {
+      Input.down['arrowup'] = up;
+      Input.down['arrowdown'] = down;
+      Input.down['arrowleft'] = left;
+      Input.down['arrowright'] = right;
+    };
+    const moveStick = (x, y) => { stick.style.transform = `translate(${x}px, ${y}px)`; };
+
+    const updateFromPoint = (px, py) => {
+      const dx = px - cx, dy = py - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist < DEAD) { setDirs(false, false, false, false); moveStick(0, 0); return; }
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;         // -180..180, 0=右
+      const octant = (((Math.round(angle / 45) % 8) + 8) % 8);  // 0..7 に正規化
+      const [up, down, left, right] = TABLE[octant];
+      setDirs(up, down, left, right);
+      const clamped = Math.min(dist, R);
+      const rad = angle * Math.PI / 180;
+      moveStick(Math.cos(rad) * clamped, Math.sin(rad) * clamped);
+    };
+
+    const getPoint = e => e.changedTouches ? e.changedTouches[0] : e;
+    const findTouch = e => e.changedTouches
+      ? Array.from(e.changedTouches).find(t => t.identifier === touchId)
+      : e;
+
+    const start = e => {
+      if (touchId !== null) return;
+      e.preventDefault();
+      const t = getPoint(e);
+      touchId = e.changedTouches ? t.identifier : 'mouse';
+      const rect = base.getBoundingClientRect();
+      cx = rect.left + rect.width / 2;
+      cy = rect.top + rect.height / 2;
+      base.classList.add('active');
+      updateFromPoint(t.clientX, t.clientY);
+    };
+    const move = e => {
+      if (touchId === null) return;
+      const t = findTouch(e);
+      if (!t) return;
+      e.preventDefault();
+      updateFromPoint(t.clientX, t.clientY);
+    };
+    const end = e => {
+      if (touchId === null) return;
+      if (e.changedTouches && !findTouch(e)) return;
+      touchId = null;
+      base.classList.remove('active');
+      setDirs(false, false, false, false);
+      moveStick(0, 0);
+    };
+
+    base.addEventListener('touchstart', start, { passive: false });
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', end, { passive: false });
+    document.addEventListener('touchcancel', end, { passive: false });
+    // デスクトップでのマウス操作テスト用
+    base.addEventListener('mousedown', start);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', end);
   }
 };
 
