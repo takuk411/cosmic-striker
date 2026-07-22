@@ -37,16 +37,18 @@
     touch-action: none;
   }
 
-  /* ===== タッチ操作UI（スマホ/タブレットのみ表示） ===== */
+  /* ===== タッチ操作UI（スマホ/タブレットのみ表示） =====
+   * game-containerの外に置き、ビューポート全体を基準に固定表示する。
+   * 横向きではcanvas左右に生まれる余白部分に配置され、ゲーム画面と重なりにくい。 */
   #touch-controls {
     display: none;
-    position: absolute;
-    left: calc(8px + env(safe-area-inset-left));
-    right: calc(8px + env(safe-area-inset-right));
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    position: fixed;
+    top: 0; bottom: 0;
+    left: calc(10px + env(safe-area-inset-left));
+    right: calc(10px + env(safe-area-inset-right));
     pointer-events: none;        /* 子要素のボタンのみ操作可 */
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: center;         /* 縦方向は画面中央に揃える */
     z-index: 10;
   }
   @media (hover: none) and (pointer: coarse) {
@@ -72,19 +74,20 @@
   #tc-joystick {
     pointer-events: auto;
     position: relative;
-    width: 130px;
-    height: 130px;
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
-    background: rgba(8,10,25,0.55);
+    background: rgba(8,10,25,0.5);
     border: 1px solid #3a4a8f;
     -webkit-tap-highlight-color: transparent;
     touch-action: none;
+    flex: none;
   }
   #tc-stick {
     position: absolute;
     left: 50%; top: 50%;
-    width: 56px; height: 56px;
-    margin-left: -28px; margin-top: -28px;
+    width: 52px; height: 52px;
+    margin-left: -26px; margin-top: -26px;
     border-radius: 50%;
     background: rgba(80,110,200,0.6);
     border: 1px solid #9ecbff;
@@ -94,18 +97,20 @@
   #tc-joystick.active #tc-stick {
     background: rgba(120,150,255,0.85);
   }
-  /* 右側のアクションボタン */
+  /* 右側のアクションボタン（縦並びにして横幅を圧縮しない） */
   #tc-actions {
     display: flex;
-    align-items: flex-end;
+    flex-direction: column;
+    align-items: center;
     gap: 14px;
+    flex: none;
   }
-  #tc-missile { width: 56px; height: 56px; font-size: 12px; }
-  #tc-shot    { width: 74px; height: 74px; font-size: 14px; }
-  /* 右上のポーズボタン */
+  #tc-missile { width: 52px; height: 52px; font-size: 11px; }
+  #tc-shot    { width: 70px; height: 70px; font-size: 13px; }
+  /* 右上のポーズボタン（画面全体基準） */
   #tc-pause {
     display: none;
-    position: absolute;
+    position: fixed;
     top: calc(10px + env(safe-area-inset-top));
     right: calc(10px + env(safe-area-inset-right));
     width: 40px; height: 40px;
@@ -126,17 +131,17 @@
 <body>
 <div id="game-container">
   <canvas id="game" width="800" height="500"></canvas>
+</div>
 
-  <button id="tc-pause" aria-label="ポーズ">II</button>
+<button id="tc-pause" aria-label="ポーズ">II</button>
 
-  <div id="touch-controls">
-    <div id="tc-joystick">
-      <div id="tc-stick"></div>
-    </div>
-    <div id="tc-actions">
-      <div id="tc-missile" class="tc-btn" data-key="x">MSL</div>
-      <div id="tc-shot"    class="tc-btn" data-key="z">SHOT</div>
-    </div>
+<div id="touch-controls">
+  <div id="tc-joystick">
+    <div id="tc-stick"></div>
+  </div>
+  <div id="tc-actions">
+    <div id="tc-missile" class="tc-btn" data-key="x">MSL</div>
+    <div id="tc-shot"    class="tc-btn" data-key="z">SHOT</div>
   </div>
 </div>
 
